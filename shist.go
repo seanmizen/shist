@@ -29,10 +29,10 @@ type entry struct {
 func main() {
 	n := flag.Int("n", -1, "number of lines to show (-1 for all)")
 	file := flag.String("file", defaultHistoryFile(), "history file to read")
-	minDate := flag.String("minDate", "", "minimum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or 10-digit UNIX timestamp)")
-	maxDate := flag.String("maxDate", "", "maximum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or 10-digit UNIX timestamp)")
-	minIndex := flag.Int("minIndex", -1, "minimum index (inclusive)")
-	maxIndex := flag.Int("maxIndex", -1, "maximum index (inclusive)")
+	minDate := flag.String("min-date", "", "minimum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or 10-digit UNIX timestamp)")
+	maxDate := flag.String("max-date", "", "maximum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or 10-digit UNIX timestamp)")
+	minIndex := flag.Int("min-index", -1, "minimum index (inclusive)")
+	maxIndex := flag.Int("max-index", -1, "maximum index (inclusive)")
 	noColor := flag.Bool("no-color", false, "disable colored output")
 
 	flag.Parse()

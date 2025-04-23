@@ -4,5 +4,6 @@ build:
 clean:
 	rm -rf bin/
 
-install-macos: build
+install-macos:
+	make build
 	sudo cp bin/shist /usr/local/bin/shist
