@@ -42,7 +42,7 @@ func Run() {
 	noColor := flag.Bool("no-color", false, "Disable coloured output. Overrides color directives.")
 
 	dateFmt := flag.String("date-format", "2006-01-02 15:04",
-		"Go time layout for the timestamp.")
+		"Go time layout for the timestamp.\nYou must use Golang's Magical Reference Date: Mon Jan 2 15:04:05 MST 2006")
 	outFmt := flag.String("format", "%C(green)%d%C(reset) | %C(yellow)%i%C(reset) | %c",
 		"Output template (%d=date, %t=timestamp, %i=index, %e=elapsed, %c=command)")
 
