@@ -110,18 +110,13 @@ named colors are: black, red, green, yellow, blue, magenta, cyan, white.
 		ui.Disable()
 	}
 
-	for _, e := range entries {
-		if !minTime.IsZero() && time.Unix(e.Timestamp, 0).Before(minTime) {
-			continue
-		}
-		if !maxTime.IsZero() && time.Unix(e.Timestamp, 0).After(maxTime) {
-			continue
-		}
-		if *minIndex > 0 && e.Index < *minIndex {
-			continue
-		}
-		if *maxIndex > 0 && e.Index > *maxIndex {
-			continue
+	for _, e := range entries { // oldest → newest
+		t := time.Unix(e.Timestamp, 0)
+		if (!minTime.IsZero() && t.Before(minTime)) ||
+			 (!maxTime.IsZero() && t.After(maxTime)) ||
+			 (*minIndex > 0 && e.Index < *minIndex) ||
+			 (*maxIndex > 0 && e.Index > *maxIndex) {
+				continue
 		}
 		printEntry(e, *dateFmt, *outFmt)
 	}
@@ -212,29 +207,27 @@ func (zshReader) Read(path string) ([]model.Entry, error) {
 	}
 
 	entries := make([]model.Entry, 0, len(raw))
-	for i := len(raw) - 1; i >= 0; i-- {
-		idx := len(raw) - i
-		line := raw[i]
-		if m := zshRe.FindStringSubmatch(line); m != nil {
-			ts, _ := strconv.ParseInt(m[1], 10, 64)
-			el, _ := strconv.ParseInt(m[2], 10, 64)
-			entries = append(entries, model.Entry{
-				Index:     idx,
-				Timestamp: ts,
-				Elapsed:   el,
-				Command:   m[3],
-			})
-		} else {
-			entries = append(entries, model.Entry{
-				Index:   idx,
-				Command: line,
-				Raw:     line,
-			})
+	for i, line := range raw {
+			idx := i + 1
+			if m := zshRe.FindStringSubmatch(line); m != nil {
+					ts, _ := strconv.ParseInt(m[1], 10, 64)
+					el, _ := strconv.ParseInt(m[2], 10, 64)
+					entries = append(entries, model.Entry{
+							Index:     idx,
+							Timestamp: ts,
+							Elapsed:   el,
+							Command:   m[3],
+					})
+			} else {
+					entries = append(entries, model.Entry{
+							Index:   idx,
+							Command: line,
+							Raw:     line,
+					})
+			}
 		}
+		return entries, sc.Err()
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Index < entries[j].Index })
-	return entries, sc.Err()
-}
 
 /* ---------- Bash reader ---------- */
 
