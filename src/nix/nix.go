@@ -39,11 +39,11 @@ func Run() {
 	maxDate := flag.String("max-date", "", "Maximum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or UNIX seconds)")
 	minIndex := flag.Int("min-index", -1, "Minimum index (inclusive)")
 	maxIndex := flag.Int("max-index", -1, "Maximum index (inclusive)")
-	noColor := flag.Bool("no-color", false, "Disable coloured output")
+	noColor := flag.Bool("no-color", false, "Disable coloured output. Overrides color directives.")
 
 	dateFmt := flag.String("date-format", "2006-01-02 15:04",
 		"Go time layout for the timestamp.")
-	outFmt := flag.String("format", "%d | %i | %c",
+	outFmt := flag.String("format", "%C(green)%d%C(reset) | %C(yellow)%i%C(reset) | %c",
 		"Output template (%d=date, %t=timestamp, %i=index, %e=elapsed, %c=command)")
 
 	flag.Usage = func() {
@@ -56,10 +56,17 @@ Usage:
 Options:
 `)
 		flag.PrintDefaults()
-		const examples = `Examples:
+		const examples = `
+Examples:
 	shist --n 20 --format "%i %d %es - %c"
 	shist --min-date "2025-04-01" --date-format "15:04" --format "%d | %c"
-	shist --no-color --format "%i:%c"
+	shist --no-color
+	shist --format "%i:%c"
+	shist --format "%C(red)%i:%c%C(reset)"
+
+shist uses git log-style color directives . %C(red), %C(fed7b0), %C(reset)
+named colors are: black, red, green, yellow, blue, magenta, cyan, white.
+
 `
 		fmt.Fprintf(os.Stderr, "%s", examples)
 	}
@@ -143,15 +150,18 @@ func pickReader() reader {
 func printEntry(e model.Entry, dateFmt, outFmt string) {
 	dateStr, tsStr := "", ""
 	if e.Timestamp != 0 {
-		tm := time.Unix(e.Timestamp, 0)
-		dateStr = tm.Format(dateFmt)
+		t := time.Unix(e.Timestamp, 0)
+		dateStr = t.Format(dateFmt)
 		tsStr = strconv.FormatInt(e.Timestamp, 10)
 	}
 
-	out := outFmt
-	out = strings.ReplaceAll(out, "%d", ui.Green(dateStr))
-	out = strings.ReplaceAll(out, "%t", ui.Green(tsStr))
-	out = strings.ReplaceAll(out, "%i", ui.Yellow(strconv.Itoa(e.Index)))
+	// 1) expand colour directives
+	out := ui.ExpandColors(outFmt)
+
+	// 2) inject placeholders
+	out = strings.ReplaceAll(out, "%d", dateStr)
+	out = strings.ReplaceAll(out, "%t", tsStr)
+	out = strings.ReplaceAll(out, "%i", strconv.Itoa(e.Index))
 	out = strings.ReplaceAll(out, "%e", strconv.FormatInt(e.Elapsed, 10))
 	out = strings.ReplaceAll(out, "%c", e.Command)
 
