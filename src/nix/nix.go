@@ -40,6 +40,12 @@ func Run() {
 	minIndex := flag.Int("min-index", -1, "Minimum index (inclusive)")
 	maxIndex := flag.Int("max-index", -1, "Maximum index (inclusive)")
 	noColor := flag.Bool("no-color", false, "Disable coloured output. Overrides color directives.")
+	var concatMultiline bool
+	flag.BoolVar(&concatMultiline, "concat-multiline", false, "Concat multiline commands to one line")
+	flag.BoolVar(&concatMultiline, "c", false, "")
+	var grepPattern string
+	flag.StringVar(&grepPattern, "grep", "", "Only show entries matching this pattern (before filters)")
+	flag.StringVar(&grepPattern, "g", "", "") // this prints a whole line whereas BoolVar doesn't. Poor lib design.
 
 	dateFmt := flag.String("date-format", "2006-01-02 15:04",
 		"Go time layout for the timestamp.\nYou must use Golang's Magical Reference Date: Mon Jan 2 15:04:05 MST 2006")
@@ -63,6 +69,9 @@ Examples:
 	shist --no-color
 	shist --format "%i:%c"
 	shist --format "%C(red)%i:%c%C(reset)"
+	shist -g "foo" -n 20	# this greps before filtering 20 items. It gives you 20 matches!
+	shist -format "%c" -g brew	# print just the command, grep 'brew'
+	shist -format "%c" -c -g brew	# print just the command, grep 'brew', concatenate multiline commands into one.
 
 shist uses git log-style color directives . %C(red), %C(fed7b0), %C(reset)
 named colors are: black, red, green, yellow, blue, magenta, cyan, white.
@@ -90,7 +99,14 @@ named colors are: black, red, green, yellow, blue, magenta, cyan, white.
 		os.Exit(1)
 	}
 
-	/* newest-first -> newest-N */
+	/* grep first (cheap-ens downstream work) */
+	if grepPattern != "" {
+		pat, err := regexp.Compile(grepPattern)
+		must(err)
+		entries = grepEntries(entries, pat)
+	}
+
+	/* newest-first → newest-N */
 	if *n > 0 && *n < len(entries) {
 		entries = entries[len(entries)-*n:]
 	}
@@ -113,20 +129,30 @@ named colors are: black, red, green, yellow, blue, magenta, cyan, white.
 	for _, e := range entries { // oldest → newest
 		t := time.Unix(e.Timestamp, 0)
 		if (!minTime.IsZero() && t.Before(minTime)) ||
-			 (!maxTime.IsZero() && t.After(maxTime)) ||
-			 (*minIndex > 0 && e.Index < *minIndex) ||
-			 (*maxIndex > 0 && e.Index > *maxIndex) {
-				continue
+			(!maxTime.IsZero() && t.After(maxTime)) ||
+			(*minIndex > 0 && e.Index < *minIndex) ||
+			(*maxIndex > 0 && e.Index > *maxIndex) {
+			continue
 		}
-		printEntry(e, *dateFmt, *outFmt)
+		printEntry(e, *dateFmt, *outFmt, concatMultiline)
 	}
+}
+
+func grepEntries(entries []model.Entry, pattern *regexp.Regexp) []model.Entry {
+	out := entries[:0]
+	for _, e := range entries {
+		if pattern.MatchString(e.Command) {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 /* ---------- reader selection ---------- */
 
 func pickReader() reader {
 	if runtime.GOOS == "windows" {
-		return nil // future: powershell / cmd readers
+		return nil
 	}
 	switch filepath.Base(os.Getenv("SHELL")) {
 	case "bash":
@@ -140,9 +166,28 @@ func pickReader() reader {
 	}
 }
 
-/* ---------- printers / helpers ---------- */
+/* ---------- printers ---------- */
 
-func printEntry(e model.Entry, dateFmt, outFmt string) {
+func formatMultiline(lines []string) string {
+	if len(lines) == 0 {
+			return ""
+	}
+	out := make([]string, len(lines))
+	for i, l := range lines {
+			t := strings.TrimSpace(l)
+			t = strings.TrimRight(t, "\\")   // drop all original backslashes
+			if i == 0 {
+					out[i] = t + " \\"           // first line
+			} else {
+					out[i] = "    " + t + " \\"  // indented follow-ups
+			}
+	}
+	// last line: remove the trailing backslash we just added
+	out[len(out)-1] = strings.TrimSuffix(out[len(out)-1], " \\")
+	return strings.Join(out, "\n")
+}
+
+func printEntry(e model.Entry, dateFmt, outFmt string, concatMultiline bool) {
 	dateStr, tsStr := "", ""
 	if e.Timestamp != 0 {
 		t := time.Unix(e.Timestamp, 0)
@@ -150,18 +195,23 @@ func printEntry(e model.Entry, dateFmt, outFmt string) {
 		tsStr = strconv.FormatInt(e.Timestamp, 10)
 	}
 
-	// 1) expand colour directives
 	out := ui.ExpandColors(outFmt)
 
-	// 2) inject placeholders
+	cmd := e.Command
+	if !concatMultiline && len(e.Lines) > 1 {
+		cmd = formatMultiline(e.Lines)
+	}
+
 	out = strings.ReplaceAll(out, "%d", dateStr)
 	out = strings.ReplaceAll(out, "%t", tsStr)
 	out = strings.ReplaceAll(out, "%i", strconv.Itoa(e.Index))
 	out = strings.ReplaceAll(out, "%e", strconv.FormatInt(e.Elapsed, 10))
-	out = strings.ReplaceAll(out, "%c", e.Command)
+	out = strings.ReplaceAll(out, "%c", cmd)
 
 	fmt.Println(out)
 }
+
+/* ---------- helpers ---------- */
 
 func parseDate(s string) (time.Time, error) {
 	if ts, err := strconv.ParseInt(s, 10, 64); err == nil {
@@ -200,34 +250,56 @@ func (zshReader) Read(path string) ([]model.Entry, error) {
 	}
 	defer f.Close()
 
-	var raw []string
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		raw = append(raw, sc.Text())
+	var (
+		entries      []model.Entry
+		current      strings.Builder
+		lines        []string
+		ts, el int64
+		idx     = 0
+	)
+
+	flush := func() {
+		cmd := strings.TrimSpace(current.String())
+		if cmd == "" {
+			return
+		}
+		idx++
+		entries = append(entries, model.Entry{
+			Index:     idx,
+			Timestamp: ts,
+			Elapsed:   el,
+			Command:   cmd,
+			Lines:     append([]string{}, lines...),
+		})
+		current.Reset()
+		lines = lines[:0]
 	}
 
-	entries := make([]model.Entry, 0, len(raw))
-	for i, line := range raw {
-			idx := i + 1
-			if m := zshRe.FindStringSubmatch(line); m != nil {
-					ts, _ := strconv.ParseInt(m[1], 10, 64)
-					el, _ := strconv.ParseInt(m[2], 10, 64)
-					entries = append(entries, model.Entry{
-							Index:     idx,
-							Timestamp: ts,
-							Elapsed:   el,
-							Command:   m[3],
-					})
-			} else {
-					entries = append(entries, model.Entry{
-							Index:   idx,
-							Command: line,
-							Raw:     line,
-					})
-			}
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := sc.Text()
+		if m := zshRe.FindStringSubmatch(line); m != nil {
+			flush()
+			ts, _ = strconv.ParseInt(m[1], 10, 64)
+			el, _ = strconv.ParseInt(m[2], 10, 64)
+			line = m[3]
 		}
-		return entries, sc.Err()
-	}
+
+		lines = append(lines, line)
+
+		trimmed := strings.TrimSpace(line)
+		if strings.HasSuffix(trimmed, "\\") {
+				current.WriteString(strings.TrimRight(trimmed, "\\"))
+				current.WriteString(" ")
+		} else {
+				current.WriteString(trimmed)
+				flush()
+		}
+			}
+	flush()
+
+	return entries, sc.Err()
+}
 
 /* ---------- Bash reader ---------- */
 
@@ -247,33 +319,54 @@ func (bashReader) Read(path string) ([]model.Entry, error) {
 	}
 	defer f.Close()
 
-	var entries []model.Entry
+	var (
+		entries      []model.Entry
+		current      strings.Builder
+		lines        []string
+		ts     int64
+		idx    = 0
+	)
+
 	sc := bufio.NewScanner(f)
-	index := 0
 	for sc.Scan() {
 		line := sc.Text()
 		if m := bashTS.FindStringSubmatch(line); m != nil {
-			if !sc.Scan() {
-				break
+			// timestamp line: next lines belong to new command
+			if current.Len() != 0 {
+				idx++
+				entries = append(entries, model.Entry{
+					Index:     idx,
+					Timestamp: ts,
+					Command:   strings.TrimSpace(current.String()),
+					Lines:     append([]string{}, lines...),
+				})
+				current.Reset()
+				lines = lines[:0]
 			}
-			cmd := sc.Text()
-			ts, _ := strconv.ParseInt(m[1], 10, 64)
-			index++
-			entries = append(entries, model.Entry{
-				Index:     index,
-				Timestamp: ts,
-				Command:   cmd,
-			})
+			ts, _ = strconv.ParseInt(m[1], 10, 64)
+			continue
+		}
+
+		lines = append(lines, line)
+		trimmed := strings.TrimSpace(line)
+		if strings.HasSuffix(trimmed, "\\") {
+			current.WriteString(strings.TrimSuffix(trimmed, "\\"))
+			current.WriteString(" ")
 		} else {
-			index++
-			entries = append(entries, model.Entry{
-				Index:   index,
-				Command: line,
-				Raw:     line,
-			})
+			current.WriteString(trimmed + " ")
 		}
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Index < entries[j].Index })
+
+	if current.Len() != 0 {
+		idx++
+		entries = append(entries, model.Entry{
+			Index:     idx,
+			Timestamp: ts,
+			Command:   strings.TrimSpace(current.String()),
+			Lines:     append([]string{}, lines...),
+		})
+	}
+
 	return entries, sc.Err()
 }
 
@@ -320,7 +413,8 @@ func (fishReader) Read(path string) ([]model.Entry, error) {
 		entries[i] = model.Entry{
 			Index:     i + 1,
 			Timestamp: it.When,
-			Command:   it.Cmd,
+			Command:   strings.TrimSpace(it.Cmd),
+			Lines:     []string{strings.TrimSpace(it.Cmd)},
 		}
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Index < entries[j].Index })
