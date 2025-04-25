@@ -1,4 +1,4 @@
-# shist
+# shist - Sean's History Tool
 
 https://github.com/user-attachments/assets/c2d6e4dc-fdf3-4b32-a70b-20f771d4eda3
 
