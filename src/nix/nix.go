@@ -231,17 +231,17 @@ func pickReader() reader {
 
 func formatMultiline(lines []string) string {
 	if len(lines) == 0 {
-			return ""
+		return ""
 	}
 	out := make([]string, len(lines))
 	for i, l := range lines {
-			t := strings.TrimSpace(l)
-			t = strings.TrimRight(t, "\\")   // drop all original backslashes
-			if i == 0 {
-					out[i] = t + " \\"           // first line
-			} else {
-					out[i] = "    " + t + " \\"  // indented follow-ups
-			}
+		t := strings.TrimSpace(l)
+		t = strings.TrimRight(t, "\\") // drop all original backslashes
+		if i == 0 {
+			out[i] = t + " \\" // first line
+		} else {
+			out[i] = "    " + t + " \\" // indented follow-ups
+		}
 	}
 	// last line: remove the trailing backslash we just added
 	out[len(out)-1] = strings.TrimSuffix(out[len(out)-1], " \\")
@@ -312,10 +312,10 @@ func (zshReader) Read(path string) ([]model.Entry, error) {
 	defer f.Close()
 
 	var (
-		entries      []model.Entry
-		current      strings.Builder
-		lines        []string
-		ts, el int64
+		entries []model.Entry
+		current strings.Builder
+		lines   []string
+		ts, el  int64
 		idx     = 0
 	)
 
@@ -350,13 +350,13 @@ func (zshReader) Read(path string) ([]model.Entry, error) {
 
 		trimmed := strings.TrimSpace(line)
 		if strings.HasSuffix(trimmed, "\\") {
-				current.WriteString(strings.TrimRight(trimmed, "\\"))
-				current.WriteString(" ")
+			current.WriteString(strings.TrimRight(trimmed, "\\"))
+			current.WriteString(" ")
 		} else {
-				current.WriteString(trimmed)
-				flush()
+			current.WriteString(trimmed)
+			flush()
 		}
-			}
+	}
 	flush()
 
 	return entries, sc.Err()
@@ -381,11 +381,11 @@ func (bashReader) Read(path string) ([]model.Entry, error) {
 	defer f.Close()
 
 	var (
-		entries      []model.Entry
-		current      strings.Builder
-		lines        []string
-		ts     int64
-		idx    = 0
+		entries []model.Entry
+		current strings.Builder
+		lines   []string
+		ts      int64
+		idx     = 0
 	)
 
 	sc := bufio.NewScanner(f)
