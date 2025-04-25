@@ -32,20 +32,68 @@ type reader interface {
 /* ---------- public entry-point ---------- */
 
 func Run() {
+	/* ---------- env-helpers ---------- */
+	envStr := func(key, def string) string {
+		if v, ok := os.LookupEnv(key); ok {
+			return v
+		}
+		return def
+	}
+	envInt := func(key string, def int) int {
+		if v, ok := os.LookupEnv(key); ok {
+			if i, err := strconv.Atoi(v); err == nil {
+				return i
+			}
+		}
+		return def
+	}
+	envBool := func(key string, def bool) bool {
+		if v, ok := os.LookupEnv(key); ok {
+			return v == "1" || strings.EqualFold(v, "true")
+		}
+		return def
+	}
+
 	/* ---------- CLI flags ---------- */
-	n := flag.Int("n", -1, "Number of history items to show (-1 for all)")
-	file := flag.String("file", "", "History file to read (auto-detected if empty)")
-	minDate := flag.String("min-date", "", "Minimum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or UNIX seconds)")
-	maxDate := flag.String("max-date", "", "Maximum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or UNIX seconds)")
-	minIndex := flag.Int("min-index", -1, "Minimum index (inclusive)")
-	maxIndex := flag.Int("max-index", -1, "Maximum index (inclusive)")
-	noColor := flag.Bool("no-color", false, "Disable coloured output. Overrides color directives.")
+	n := flag.Int("n",
+		envInt("SHIST_DEFAULT_NUMBER_OF_ITEMS", -1),
+		"Number of history items to show (-1 for all)")
+
+	file := flag.String("file",
+		envStr("SHIST_DEFAULT_FILE", ""),
+		"History file to read (auto-detected if empty)")
+
+	minDate := flag.String("min-date",
+		envStr("SHIST_DEFAULT_MIN_DATE", ""),
+		"Minimum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or UNIX seconds)")
+
+	maxDate := flag.String("max-date",
+		envStr("SHIST_DEFAULT_MAX_DATE", ""),
+		"Maximum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or UNIX seconds)")
+
+	minIndex := flag.Int("min-index",
+		envInt("SHIST_DEFAULT_MIN_INDEX", -1),
+		"Minimum index (inclusive)")
+
+	maxIndex := flag.Int("max-index",
+		envInt("SHIST_DEFAULT_MAX_INDEX", -1),
+		"Maximum index (inclusive)")
+
+	noColor := flag.Bool("no-color",
+		envBool("SHIST_NO_COLOR", false),
+		"Disable coloured output. Overrides color directives.")
+
 	var concatMultiline bool
-	flag.BoolVar(&concatMultiline, "concat-multiline", false, "Concat multiline commands to one line")
-	flag.BoolVar(&concatMultiline, "c", false, "")
+	flag.BoolVar(&concatMultiline, "concat-multiline",
+		envBool("SHIST_DEFAULT_CONCAT", false),
+		"Concat multiline commands to one line")
+	flag.BoolVar(&concatMultiline, "c", concatMultiline, "")
+
 	var grepPattern string
-	flag.StringVar(&grepPattern, "grep", "", "Only show entries matching this pattern (before filters)")
-	flag.StringVar(&grepPattern, "g", "", "") // this prints a whole line whereas BoolVar doesn't. Poor lib design.
+	flag.StringVar(&grepPattern, "grep",
+		envStr("SHIST_DEFAULT_GREP", ""),
+		"Only show entries matching this pattern (before filters)")
+	flag.StringVar(&grepPattern, "g", grepPattern, "") // this prints a whole line whereas BoolVar doesn't. Poor lib design.
 
 	dateFmt := flag.String("date-format", "2006-01-02 15:04",
 		"Go time layout for the timestamp.\nYou must use Golang's Magical Reference Date: Mon Jan 2 15:04:05 MST 2006")
@@ -75,9 +123,22 @@ Examples:
 
 shist uses git log-style color directives . %C(red), %C(fed7b0), %C(reset)
 named colors are: black, red, green, yellow, blue, magenta, cyan, white.
-
 `
 		fmt.Fprintf(os.Stderr, "%s", examples)
+
+		fmt.Fprintln(os.Stderr, `
+Modify your shell Environment variables for better personalisation:
+  SHIST_DEFAULT_NUMBER_OF_ITEMS   e.g. 50
+  SHIST_DEFAULT_FILE              ~/path/to/history/file
+  SHIST_DEFAULT_MIN_DATE          date string / unix timestamp
+  SHIST_DEFAULT_MAX_DATE          date string
+  SHIST_DEFAULT_MIN_INDEX         int
+  SHIST_DEFAULT_MAX_INDEX         int
+  SHIST_DEFAULT_CONCAT            "true" | "1"
+  SHIST_DEFAULT_GREP              regex pattern
+  SHIST_DEFAULT_NO_COLOR          "true" | "1"`)
+		fmt.Fprintln(os.Stderr)
+
 	}
 
 	flag.Parse()
