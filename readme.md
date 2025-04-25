@@ -1,9 +1,4 @@
 # shist
-Shell history tool. Sean's history tool? Not sure. Your pick.
-
-```bash
-shist
-```
 
 https://github.com/user-attachments/assets/c2d6e4dc-fdf3-4b32-a70b-20f771d4eda3
 
