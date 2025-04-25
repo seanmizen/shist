@@ -40,6 +40,9 @@ Usage:
   shist [options]
 
 Options:
+  -c
+  -concat-multiline
+        Concat multiline commands to one line
   -date-format string
         Go time layout for the timestamp.
         You must use Golang's Magical Reference Date: Mon Jan 2 15:04:05 MST 2006 (default "2006-01-02 15:04")
@@ -47,6 +50,10 @@ Options:
         History file to read (auto-detected if empty)
   -format string
         Output template (%d=date, %t=timestamp, %i=index, %e=elapsed, %c=command) (default "%C(green)%d%C(reset) | %C(yellow)%i%C(reset) | %c")
+  -g string
+    
+  -grep string
+        Only show entries matching this pattern (before filters)
   -max-date string
         Maximum date (YYYY-MM-DD, YYYY-MM-DD HH:MM, or UNIX seconds)
   -max-index int
@@ -59,7 +66,6 @@ Options:
         Number of history items to show (-1 for all) (default -1)
   -no-color
         Disable coloured output. Overrides color directives.
-
 ```
 
 ### Examples
