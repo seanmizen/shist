@@ -4,6 +4,14 @@ https://github.com/user-attachments/assets/c2d6e4dc-fdf3-4b32-a70b-20f771d4eda3
 
 ### Install
 
+```bash
+brew tap seanmizen/tap
+brew trust seanmizen/tap   # Homebrew requires explicit trust for third-party taps
+brew install shist
+```
+
+### Install without Homebrew
+
 Download the archive for your platform from the
 [latest release](https://github.com/seanmizen/shist/releases/latest), then:
 
