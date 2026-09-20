@@ -31,7 +31,7 @@ type reader interface {
 
 /* ---------- public entry-point ---------- */
 
-func Run() {
+func Run(version string) {
 	/* ---------- env-helpers ---------- */
 	envStr := func(key, def string) string {
 		if v, ok := os.LookupEnv(key); ok {
@@ -100,15 +100,18 @@ func Run() {
 	outFmt := flag.String("format", "%C(green)%d%C(reset) | %C(yellow)%i%C(reset) | %c",
 		"Output template (%d=date, %t=timestamp, %i=index, %e=elapsed, %c=command)")
 
+	showVersion := flag.Bool("version", false, "Print version and exit")
+	flag.BoolVar(showVersion, "v", false, "")
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
-shist - Sean's History Tool
+shist %s - Sean's History Tool
 
 Usage:
 	shist [options]
 
 Options:
-`)
+`, version)
 		flag.PrintDefaults()
 		const examples = `
 Examples:
@@ -142,6 +145,11 @@ Modify your shell Environment variables for better personalisation:
 	}
 
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("shist %s\n", version)
+		return
+	}
 
 	/* ---------- shell detection ---------- */
 	r := pickReader()
