@@ -56,11 +56,11 @@ release: clean
 	    mkdir -p "$$stage" || exit 1; \
 	    GOOS=$$o GOARCH=$$a go build -trimpath -ldflags '$(LDFLAGS)' \
 	      -o "$$stage/$(APP)$$ext" $(PKG) || exit 1; \
-	    cp readme.md "$$stage/" || exit 1; \
+	    cp readme.md LICENSE "$$stage/" || exit 1; \
 	    if [ "$$o" = "windows" ]; then \
-	      (cd "$$stage" && zip -q "$(CURDIR)/$(DIST)/$$name.zip" "$(APP)$$ext" readme.md) || exit 1; \
+	      (cd "$$stage" && zip -q "$(CURDIR)/$(DIST)/$$name.zip" "$(APP)$$ext" readme.md LICENSE) || exit 1; \
 	    else \
-	      tar -czf "$(DIST)/$$name.tar.gz" -C "$$stage" "$(APP)$$ext" readme.md || exit 1; \
+	      tar -czf "$(DIST)/$$name.tar.gz" -C "$$stage" "$(APP)$$ext" readme.md LICENSE || exit 1; \
 	    fi; \
 	  done; \
 	done

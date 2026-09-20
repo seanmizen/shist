@@ -42,3 +42,7 @@ git push origin v1.0.0
 ```
 
 `make release` does the same build locally, into `dist/`.
+
+### Licence
+
+MIT - see [LICENSE](LICENSE).
