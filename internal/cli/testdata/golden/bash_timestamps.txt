@@ -1,0 +1,6 @@
+1  ls -la
+2 1700000000 git status
+3 1700000060 for i in 1 2; do \
+    echo $i \
+    done
+4 1700000120 exit

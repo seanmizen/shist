@@ -1,0 +1,5 @@
+1: Get-ChildItem
+2: foreach ($x in 1..2) { \
+    Write-Output $x \
+    }
+3: cd C:\

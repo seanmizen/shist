@@ -1,0 +1,12 @@
+- cmd: echo a: b
+  when: 1700000000
+- cmd: cd /tmp
+  when: 1700000001
+  paths:
+    - /tmp
+- cmd: for x in 1 2\n    echo $x\nend
+  when: 1700000002
+- cmd: echo back\\slash
+  when: 1700000003
+- cmd: echo "😀"
+  when: 1700000004

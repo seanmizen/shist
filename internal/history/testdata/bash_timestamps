@@ -1,0 +1,9 @@
+ls -la
+#1700000000
+git status
+#1700000060
+for i in 1 2; do
+  echo $i
+done
+# 1700000120
+exit
