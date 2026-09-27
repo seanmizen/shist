@@ -1,6 +1,6 @@
 # ---------- config ----------
 APP     ?= shist
-PKG     ?= ./src/main
+PKG     ?= .
 BIN     ?= bin
 DIST    ?= dist
 
@@ -19,7 +19,7 @@ MATRIX_OS   := linux darwin windows
 MATRIX_ARCH := amd64 arm64
 
 # ---------- targets ----------
-.PHONY: all build clean install release version
+.PHONY: all build clean install release version test bench fuzz
 
 all: build
 
@@ -30,6 +30,20 @@ build:
 	@echo "→ building $(APP) $(VERSION) for $(OS)/$(ARCH)"
 	@mkdir -p $(BIN)
 	GOOS=$(OS) GOARCH=$(ARCH) go build -trimpath -ldflags '$(LDFLAGS)' -o $(OUT) $(PKG)
+
+test:
+	go vet ./...
+	go test ./...
+
+bench:
+	go test -run '^$$' -bench . -benchmem ./...
+
+# -fuzz only takes one target per run
+FUZZTIME ?= 30s
+fuzz:
+	go test -run '^$$' -fuzz FuzzParse   -fuzztime $(FUZZTIME) ./internal/history
+	go test -run '^$$' -fuzz FuzzCompile -fuzztime $(FUZZTIME) ./internal/format
+	go test -run '^$$' -fuzz FuzzSGR     -fuzztime $(FUZZTIME) ./internal/format
 
 clean:
 	@rm -rf $(BIN) $(DIST)
