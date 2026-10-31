@@ -1,0 +1,33 @@
+[1mshist test[0m [2m·[0m your shell history, with dates
+
+[1;33mUSAGE[0m
+  shist [flags]
+
+[1;33mFILTER[0m
+  [32m-g, -grep[0m [36mPATTERN[0m       commands matching a regex
+  [32m-C, -context[0m [36mN[0m          also show N commands either side of each match
+  [32m-B, -before[0m [36mN[0m           [2m…[0monly before
+  [32m-A, -after[0m [36mN[0m            [2m…[0monly after
+  [32m-n[0m [36mN[0m                    only the newest N matches
+  [32m-min-date[0m [36mDATE[0m          on or after DATE
+  [32m-max-date[0m [36mDATE[0m          on or before DATE [2m(a bare date is the whole day)[0m
+  [32m-min-index[0m [36mN[0m            index >= N
+  [32m-max-index[0m [36mN[0m            index <= N
+
+[1;33mOUTPUT[0m
+  [32m-format[0m [36mTEMPLATE[0m        e.g. '%d %c' [2m· see[0m shist -h format
+  [32m-date-format[0m [36mLAYOUT[0m     Go layout for %d [2m(default "2006-01-02 15:04")[0m
+  [32m-c, -concat-multiline[0m   multi-line commands on one line
+  [32m-no-color[0m               no colour
+
+[1;33mOTHER[0m
+  [32m-file[0m [36mPATH[0m              read this history file [2m(default: your shell's)[0m
+  [32m-v, -version[0m            print the version
+  [32m-h, -help[0m [36m[TOPIC][0m       this help [2m· topics:[0m format[2m,[0m env
+
+[1;33mEXAMPLES[0m
+  shist -g docker -n 20                 [2m# newest 20 docker commands[0m
+  shist -g 'git push' -C 3              [2m# each push, 3 commands either side[0m
+  shist -min-date 2025-04-01 -format '%c' | fzf
+
+[2mDATE is YYYY-MM-DD, "YYYY-MM-DD HH:MM" or UNIX seconds. -n and --n both work.[0m

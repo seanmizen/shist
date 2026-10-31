@@ -1,67 +1,114 @@
 package cli
 
-// helpText is printed for -h / --help. %s is the version.
-// Every flag must appear here (TestHelpMentionsEveryFlag checks).
-const helpText = `shist %s - Sean's History Tool
+import (
+	"regexp"
+	"strings"
 
-Prints your shell history (zsh, bash, fish, PowerShell) with dates, filters
-and a custom format. The file format is detected automatically.
+	"github.com/seanmizen/shist/internal/format"
+)
 
-Usage:
-  shist [options]
+// Help pages, by the topic after -h. {version} is the version, and {spec}
+// tags are colours: a %C spec (e.g. {dim}) or a name from helpStyles; {/}
+// resets. Every flag must appear on the main page (TestHelpMentionsEveryFlag)
+// and every env var on the env page (TestHelpMentionsEveryEnvVar).
+var helpPages = map[string]string{"": helpMain, "format": helpFormat, "env": helpEnv}
 
-Options:
-  -n N                  show the newest N matches (-1: all)
-  -g, -grep PATTERN     only entries whose command matches this regex
-  -min-date DATE        only entries on or after DATE
-  -max-date DATE        only entries on or before DATE (a date means the whole day)
-  -min-index N          only entries with index >= N
-  -max-index N          only entries with index <= N
-  -file PATH            history file to read (default: your shell's)
-  -format TEMPLATE      output template (see below)
-                        default: "%%C(green)%%d%%C(reset) | %%C(yellow)%%i%%C(reset) | %%c"
-  -date-format LAYOUT   Go time layout for %%d (default: "2006-01-02 15:04")
-                        uses Go's reference date: Mon Jan 2 15:04:05 MST 2006
-  -c, -concat-multiline print multi-line commands on one line
-  -no-color             disable colour
-  -v, -version          print the version
-  -h, -help             show this help
+var helpStyles = map[string]string{"h": "bold yellow", "f": "green", "a": "cyan", "/": "reset"}
 
-  Flags take one or two dashes: -n 20 and --n 20 are the same.
-  DATE is YYYY-MM-DD, "YYYY-MM-DD HH:MM" or UNIX seconds, in local time.
-  Filters apply first; -n then keeps the newest N of what's left.
+const helpMain = `{bold}shist {version}{/} {dim}·{/} your shell history, with dates
 
-Format tokens:
-  %%d  date (per -date-format)      %%i  index (1 = oldest)
-  %%t  UNIX timestamp               %%e  elapsed seconds (zsh only)
-  %%c  command                      %%%%  a literal %%
-  %%C(spec)  colour, git log style. spec is space-separated words:
-       colours     red green yellow blue magenta cyan white black default,
-                   brightred etc., 0-255, or #rrggbb / rrggbb
-                   (first colour is foreground, second is background)
-       attributes  bold dim italic ul blink reverse strike
-       reset       clear all colour and attributes
-     e.g. %%C(bold red)  %%C(214)  %%C(#fed7b0 black)  %%C(reset)
+{h}USAGE{/}
+  shist [flags]
 
-Examples:
-  shist -n 20 -format "%%i %%d %%es - %%c"
-  shist -min-date 2025-04-01 -date-format "15:04" -format "%%d | %%c"
-  shist -g foo -n 20              # the newest 20 commands matching foo
-  shist -format "%%c" -c -g brew   # just commands containing brew, one per line
-  shist -format "%%C(dim)%%i%%C(reset) %%C(bold)%%c%%C(reset)"
+{h}FILTER{/}
+  {f}-g, -grep{/} {a}PATTERN{/}       commands matching a regex
+  {f}-C, -context{/} {a}N{/}          also show N commands either side of each match
+  {f}-B, -before{/} {a}N{/}           {dim}…{/}only before
+  {f}-A, -after{/} {a}N{/}            {dim}…{/}only after
+  {f}-n{/} {a}N{/}                    only the newest N matches
+  {f}-min-date{/} {a}DATE{/}          on or after DATE
+  {f}-max-date{/} {a}DATE{/}          on or before DATE {dim}(a bare date is the whole day){/}
+  {f}-min-index{/} {a}N{/}            index >= N
+  {f}-max-index{/} {a}N{/}            index <= N
 
-Environment:
-  SHIST_DEFAULT_NUMBER_OF_ITEMS   default for -n, e.g. 50
-  SHIST_DEFAULT_FILE              default for -file
-  SHIST_DEFAULT_MIN_DATE          default for -min-date
-  SHIST_DEFAULT_MAX_DATE          default for -max-date
-  SHIST_DEFAULT_MIN_INDEX         default for -min-index
-  SHIST_DEFAULT_MAX_INDEX         default for -max-index
-  SHIST_DEFAULT_CONCAT            "true" or "1" to default -c on
-  SHIST_DEFAULT_GREP              default for -grep
-  SHIST_DEFAULT_NO_COLOR          "true" or "1" to default -no-color on
-  NO_COLOR                        any value disables colour (no-color.org)
-  FORCE_COLOR                     any value except 0 forces colour, even when piped
+{h}OUTPUT{/}
+  {f}-format{/} {a}TEMPLATE{/}        e.g. '%d %c' {dim}· see{/} shist -h format
+  {f}-date-format{/} {a}LAYOUT{/}     Go layout for %d {dim}(default "2006-01-02 15:04"){/}
+  {f}-c, -concat-multiline{/}   multi-line commands on one line
+  {f}-no-color{/}               no colour
 
-Exit status: 0 ok, 1 couldn't read history or write output, 2 bad usage.
+{h}OTHER{/}
+  {f}-file{/} {a}PATH{/}              read this history file {dim}(default: your shell's){/}
+  {f}-v, -version{/}            print the version
+  {f}-h, -help{/} {a}[TOPIC]{/}       this help {dim}· topics:{/} format{dim},{/} env
+
+{h}EXAMPLES{/}
+  shist -g docker -n 20                 {dim}# newest 20 docker commands{/}
+  shist -g 'git push' -C 3              {dim}# each push, 3 commands either side{/}
+  shist -min-date 2025-04-01 -format '%c' | fzf
+
+{dim}DATE is YYYY-MM-DD, "YYYY-MM-DD HH:MM" or UNIX seconds. -n and --n both work.{/}
 `
+
+const helpFormat = `{h}FORMAT{/}  {f}-format{/} {a}TEMPLATE{/}
+  default '{green}%C(green)%d%C(reset){/} | {yellow}%C(yellow)%i%C(reset){/} | %c'
+
+{h}TOKENS{/}
+  {f}%d{/}  date {dim}(per -date-format){/}      {f}%i{/}  index {dim}(1 = oldest){/}
+  {f}%t{/}  UNIX timestamp               {f}%e{/}  elapsed seconds {dim}(zsh only){/}
+  {f}%c{/}  command                      {f}%%{/}  a literal %
+  {f}%C({/}{a}spec{/}{f}){/}  colour, git log style
+
+{h}COLOURS{/}  {dim}spec is space-separated words; 1st colour = text, 2nd = background{/}
+  colours     {red}red{/} {green}green{/} {yellow}yellow{/} {blue}blue{/} {magenta}magenta{/} {cyan}cyan{/} {white}white{/} {black white}black{/} default
+              {brightred}brightred{/} …, {214}0-255{/}, {#fed7b0}#rrggbb{/}
+  attributes  {bold}bold{/} {dim}dim{/} {italic}italic{/} {ul}ul{/} {blink}blink{/} {reverse}reverse{/} {strike}strike{/}
+  reset       clear all colour and attributes
+
+{h}DATES{/}  {f}-date-format{/} {a}LAYOUT{/}
+  Go layout, written as the reference time {bold}Mon Jan 2 15:04:05 MST 2006{/}
+  e.g. "15:04"  "Jan 2"  "2006-01-02T15:04:05"
+
+{h}EXAMPLES{/}
+  shist -format '%i %d %es - %c'
+  shist -format '%C(dim)%i%C(reset) %C(bold)%c%C(reset)'
+  shist -format '%c' -c -g brew         {dim}# bare commands, one per line{/}
+`
+
+const helpEnv = `{h}ENVIRONMENT{/}  {dim}set in your shell profile; flags still win{/}
+  {a}SHIST_DEFAULT_NUMBER_OF_ITEMS{/}   {f}-n{/}, e.g. 50
+  {a}SHIST_DEFAULT_FILE{/}              {f}-file{/}
+  {a}SHIST_DEFAULT_MIN_DATE{/}          {f}-min-date{/}
+  {a}SHIST_DEFAULT_MAX_DATE{/}          {f}-max-date{/}
+  {a}SHIST_DEFAULT_MIN_INDEX{/}         {f}-min-index{/}
+  {a}SHIST_DEFAULT_MAX_INDEX{/}         {f}-max-index{/}
+  {a}SHIST_DEFAULT_GREP{/}              {f}-grep{/}
+  {a}SHIST_DEFAULT_CONTEXT{/}           {f}-context{/}  {dim}(only used with a grep){/}
+  {a}SHIST_DEFAULT_BEFORE{/}            {f}-before{/}   {dim}(only used with a grep){/}
+  {a}SHIST_DEFAULT_AFTER{/}             {f}-after{/}    {dim}(only used with a grep){/}
+  {a}SHIST_DEFAULT_CONCAT{/}            {f}-c{/}  {dim}("true" or "1"){/}
+  {a}SHIST_DEFAULT_NO_COLOR{/}          {f}-no-color{/}  {dim}("true" or "1"){/}
+  {a}NO_COLOR{/}                        any value disables colour {dim}(no-color.org){/}
+  {a}FORCE_COLOR{/}                     any value but 0 forces colour, even when piped
+
+{h}EXIT STATUS{/}
+  {f}0{/} ok  {dim}·{/}  {f}1{/} couldn't read history or write output  {dim}·{/}  {f}2{/} bad usage
+`
+
+var helpTag = regexp.MustCompile(`\{[a-z0-9#/ ]+\}`)
+
+// renderHelp fills in the version and turns {spec} tags into colour, or
+// drops them when color is false.
+func renderHelp(page, version string, color bool) string {
+	page = strings.ReplaceAll(page, "{version}", version)
+	return helpTag.ReplaceAllStringFunc(page, func(tag string) string {
+		if !color {
+			return ""
+		}
+		spec := tag[1 : len(tag)-1]
+		if s, ok := helpStyles[spec]; ok {
+			spec = s
+		}
+		return format.SGR(spec)
+	})
+}

@@ -4,6 +4,25 @@ All notable changes to shist. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and shist uses
 [semantic versioning](https://semver.org/).
 
+## [1.2.0] - 2026-10-31
+
+### Added
+
+- **Context around grep matches.** `-C`/`-context N` shows N commands either
+  side of each `-grep` match, and `-B`/`-before N` and `-A`/`-after N` show one
+  side only, like grep. Neighbours are dimmed, overlapping windows merge and
+  `--` separates groups. `-n` still counts matches. Defaults come from
+  `SHIST_DEFAULT_CONTEXT`, `SHIST_DEFAULT_BEFORE` and `SHIST_DEFAULT_AFTER`
+  (0 when unset), which only apply when there is a grep.
+- **Help topics.** `shist -h format` covers format tokens, colours and date
+  layouts; `shist -h env` covers environment variables and exit codes.
+
+### Changed
+
+- **`shist -h` is shorter and in colour.** It fits on one screen, groups flags
+  into filter, output and other, and follows `-no-color`, `NO_COLOR` and
+  `FORCE_COLOR` like the rest of the output.
+
 ## [1.1.0] - 2026-09-27
 
 ### Added
@@ -99,6 +118,7 @@ About 20× faster on large histories (300,000 entries, 20MB, Apple Silicon):
 First tagged release: zsh, bash and fish history, format templates, date,
 index and grep filters, prebuilt archives for six platforms.
 
+[1.2.0]: https://github.com/seanmizen/shist/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/seanmizen/shist/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/seanmizen/shist/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/seanmizen/shist/releases/tag/v1.0.0

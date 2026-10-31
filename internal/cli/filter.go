@@ -16,6 +16,7 @@ type filters struct {
 	hasMin, hasMax     bool
 	minIndex, maxIndex int
 	n                  int
+	before, after      int // neighbours to show around each match
 }
 
 func (f filters) keep(e history.Entry) bool {
@@ -39,6 +40,43 @@ func (f filters) apply(entries []history.Entry) []history.Entry {
 		out = out[len(out)-f.n:]
 	}
 	return out
+}
+
+// row is an entry printed by withContext.
+type row struct {
+	history.Entry
+	context bool // a neighbour of a match, not a match
+	gap     bool // doesn't follow the row before it; print a separator first
+}
+
+// withContext is apply plus f.before and f.after neighbours around each
+// match. Neighbours are the entries next to a match in the file, whatever the
+// other filters say. Windows that overlap or touch are merged.
+func (f filters) withContext(entries []history.Entry) []row {
+	var matches []int
+	for i, e := range entries {
+		if f.keep(e) {
+			matches = append(matches, i)
+		}
+	}
+	if f.n > 0 && f.n < len(matches) {
+		matches = matches[len(matches)-f.n:]
+	}
+	var rows []row
+	next, j := 0, 0 // next: first entry not printed yet; j: first match >= i
+	for _, m := range matches {
+		start, end := max(m-f.before, next), min(m+f.after, len(entries)-1)
+		for i := start; i <= end; i++ {
+			for j < len(matches) && matches[j] < i {
+				j++
+			}
+			isMatch := j < len(matches) && matches[j] == i
+			gap := len(rows) > 0 && i == start && i > next
+			rows = append(rows, row{entries[i], !isMatch, gap})
+		}
+		next = max(next, end+1)
+	}
+	return rows
 }
 
 // matcher returns a fast path for plain-text patterns, which are most of them.

@@ -38,6 +38,7 @@ type Options struct {
 	DateLayout string // Go time layout for %d
 	Color      bool   // expand %C(…) directives; otherwise drop them
 	Concat     bool   // print multi-line commands on one line
+	Dim        bool   // with Color, render the whole line dim (context lines)
 }
 
 // Compile parses tmpl. Tokens: %d date, %t UNIX timestamp, %i index,
@@ -46,6 +47,10 @@ type Options struct {
 func Compile(tmpl string, opt Options) *Template {
 	t := &Template{dateLayout: opt.DateLayout, concat: opt.Concat}
 	var lit strings.Builder
+	dim := opt.Color && opt.Dim
+	if dim {
+		lit.WriteString(sgr("dim"))
+	}
 	emit := func(k kind) {
 		if lit.Len() > 0 {
 			t.parts = append(t.parts, part{kind: literal, text: lit.String()})
@@ -82,6 +87,9 @@ func Compile(tmpl string, opt Options) *Template {
 			}
 			if opt.Color {
 				lit.WriteString(sgr(spec[:end]))
+				if dim { // keep the line dim after the template's own colours
+					lit.WriteString(sgr("dim"))
+				}
 			}
 			i += 2 + end + 1 // skip "C(spec)"; the loop's i++ skips ")"
 			continue
@@ -90,6 +98,9 @@ func Compile(tmpl string, opt Options) *Template {
 			continue
 		}
 		i++
+	}
+	if dim {
+		lit.WriteString(sgr("reset"))
 	}
 	emit(literal)
 	return t

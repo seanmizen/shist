@@ -64,9 +64,13 @@ type config struct {
 	noColor            bool
 	concat             bool
 	grep               string
+	context            int
+	before, after      int
+	contextFlag        bool // -context, -before or -after was on the command line
 	dateFormat         string
 	format             string
 	version            bool
+	helpTopic          string // the word after -h, if any
 }
 
 // newFlagSet defines every flag on c, with defaults from the environment.
@@ -112,6 +116,12 @@ func newFlagSet(env Env, c *config, bad *[]string) *flag.FlagSet {
 	flags.BoolVar(&c.concat, "c", c.concat, "")
 	flags.StringVar(&c.grep, "grep", envStr("SHIST_DEFAULT_GREP", ""), "")
 	flags.StringVar(&c.grep, "g", c.grep, "")
+	flags.IntVar(&c.context, "context", envInt("SHIST_DEFAULT_CONTEXT", 0), "")
+	flags.IntVar(&c.context, "C", c.context, "")
+	flags.IntVar(&c.before, "before", envInt("SHIST_DEFAULT_BEFORE", 0), "")
+	flags.IntVar(&c.before, "B", c.before, "")
+	flags.IntVar(&c.after, "after", envInt("SHIST_DEFAULT_AFTER", 0), "")
+	flags.IntVar(&c.after, "A", c.after, "")
 	flags.StringVar(&c.dateFormat, "date-format", "2006-01-02 15:04", "")
 	flags.StringVar(&c.format, "format", "%C(green)%d%C(reset) | %C(yellow)%i%C(reset) | %c", "")
 	flags.BoolVar(&c.version, "version", false, "")
@@ -126,10 +136,17 @@ func parseArgs(env Env) (config, error) {
 	flags := newFlagSet(env, &c, &bad)
 	if err := flags.Parse(env.Args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
+			c.helpTopic = flags.Arg(0)
 			return c, err
 		}
 		return c, usageError{err}
 	}
+	flags.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "context", "C", "before", "B", "after", "A":
+			c.contextFlag = true
+		}
+	})
 	if flags.NArg() > 0 {
 		return c, usagef("unexpected argument %q", flags.Arg(0))
 	}
@@ -142,7 +159,12 @@ func parseArgs(env Env) (config, error) {
 func run(version string, env Env) error {
 	c, err := parseArgs(env)
 	if errors.Is(err, flag.ErrHelp) {
-		fmt.Fprintf(env.Stdout, helpText, version)
+		page, ok := helpPages[c.helpTopic]
+		if !ok {
+			return usagef("no help topic %q (try format or env)", c.helpTopic)
+		}
+		color := format.ColorEnabled(env.Stdout, c.noColor, env.LookupEnv)
+		fmt.Fprint(env.Stdout, renderHelp(page, version, color))
 		return err
 	}
 	if err != nil {
@@ -155,6 +177,20 @@ func run(version string, env Env) error {
 
 	/* ---------- filters (checked before touching the file) ---------- */
 	f := filters{n: c.n, minIndex: c.minIndex, maxIndex: c.maxIndex}
+	if c.context < 0 || c.before < 0 || c.after < 0 {
+		return usagef("-context, -before and -after can't be negative")
+	}
+	if c.grep != "" { // context is only for grep; env defaults alone don't complain
+		f.before, f.after = c.before, c.after
+		if f.before == 0 {
+			f.before = c.context
+		}
+		if f.after == 0 {
+			f.after = c.context
+		}
+	} else if c.contextFlag {
+		return usagef("-context, -before and -after need -grep")
+	}
 	if c.grep != "" {
 		re, err := regexp.Compile(c.grep)
 		if err != nil {
@@ -192,26 +228,54 @@ func run(version string, env Env) error {
 	}
 
 	/* ---------- write ---------- */
-	tmpl := format.Compile(c.format, format.Options{
+	opt := format.Options{
 		DateLayout: c.dateFormat,
 		Color:      format.ColorEnabled(env.Stdout, c.noColor, env.LookupEnv),
 		Concat:     c.concat,
-	})
+	}
+	tmpl := format.Compile(c.format, opt)
 	const flushAt = 64 * 1024
 	buf := make([]byte, 0, flushAt+4096)
-	for _, e := range f.apply(entries) { // oldest → newest
-		buf = tmpl.Append(buf, e)
-		if len(buf) >= flushAt {
-			if _, err := env.Stdout.Write(buf); err != nil {
-				return fmt.Errorf("writing output: %w", err)
+	flush := func(min int) error {
+		if len(buf) < min {
+			return nil
+		}
+		if _, err := env.Stdout.Write(buf); err != nil {
+			return fmt.Errorf("writing output: %w", err)
+		}
+		buf = buf[:0]
+		return nil
+	}
+	if f.before == 0 && f.after == 0 {
+		for _, e := range f.apply(entries) { // oldest → newest
+			buf = tmpl.Append(buf, e)
+			if err := flush(flushAt); err != nil {
+				return err
 			}
-			buf = buf[:0]
+		}
+		return flush(0)
+	}
+
+	opt.Dim = true
+	dim := format.Compile(c.format, opt) // neighbours of a match
+	sep := "--\n"                        // between groups that aren't next to each other
+	if opt.Color {
+		sep = format.SGR("dim") + "--" + format.SGR("reset") + "\n"
+	}
+	for _, r := range f.withContext(entries) {
+		if r.gap {
+			buf = append(buf, sep...)
+		}
+		if r.context {
+			buf = dim.Append(buf, r.Entry)
+		} else {
+			buf = tmpl.Append(buf, r.Entry)
+		}
+		if err := flush(flushAt); err != nil {
+			return err
 		}
 	}
-	if _, err := env.Stdout.Write(buf); err != nil {
-		return fmt.Errorf("writing output: %w", err)
-	}
-	return nil
+	return flush(0)
 }
 
 // regexpErr drops Go's "error parsing regexp: " prefix; the caller adds its own context.

@@ -46,6 +46,10 @@ var (
 	}
 )
 
+// SGR converts a colour spec to an ANSI escape sequence, as %C(spec) does.
+// It returns "" for a spec it doesn't understand.
+func SGR(spec string) string { return sgr(spec) }
+
 // sgr converts a git-style colour spec to an ANSI "CSI … m" sequence.
 // A spec is space-separated words: attributes (bold, dim, italic, ul, blink,
 // reverse, strike) and up to two colours, foreground then background. A

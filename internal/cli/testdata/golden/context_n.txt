@@ -1,0 +1,3 @@
+ | 3 | echo one \
+    two
+ | 4 | git log --oneline

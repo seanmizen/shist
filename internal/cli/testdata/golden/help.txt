@@ -1,0 +1,33 @@
+shist test · your shell history, with dates
+
+USAGE
+  shist [flags]
+
+FILTER
+  -g, -grep PATTERN       commands matching a regex
+  -C, -context N          also show N commands either side of each match
+  -B, -before N           …only before
+  -A, -after N            …only after
+  -n N                    only the newest N matches
+  -min-date DATE          on or after DATE
+  -max-date DATE          on or before DATE (a bare date is the whole day)
+  -min-index N            index >= N
+  -max-index N            index <= N
+
+OUTPUT
+  -format TEMPLATE        e.g. '%d %c' · see shist -h format
+  -date-format LAYOUT     Go layout for %d (default "2006-01-02 15:04")
+  -c, -concat-multiline   multi-line commands on one line
+  -no-color               no colour
+
+OTHER
+  -file PATH              read this history file (default: your shell's)
+  -v, -version            print the version
+  -h, -help [TOPIC]       this help · topics: format, env
+
+EXAMPLES
+  shist -g docker -n 20                 # newest 20 docker commands
+  shist -g 'git push' -C 3              # each push, 3 commands either side
+  shist -min-date 2025-04-01 -format '%c' | fzf
+
+DATE is YYYY-MM-DD, "YYYY-MM-DD HH:MM" or UNIX seconds. -n and --n both work.

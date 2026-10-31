@@ -1,0 +1,18 @@
+ENVIRONMENT  set in your shell profile; flags still win
+  SHIST_DEFAULT_NUMBER_OF_ITEMS   -n, e.g. 50
+  SHIST_DEFAULT_FILE              -file
+  SHIST_DEFAULT_MIN_DATE          -min-date
+  SHIST_DEFAULT_MAX_DATE          -max-date
+  SHIST_DEFAULT_MIN_INDEX         -min-index
+  SHIST_DEFAULT_MAX_INDEX         -max-index
+  SHIST_DEFAULT_GREP              -grep
+  SHIST_DEFAULT_CONTEXT           -context  (only used with a grep)
+  SHIST_DEFAULT_BEFORE            -before   (only used with a grep)
+  SHIST_DEFAULT_AFTER             -after    (only used with a grep)
+  SHIST_DEFAULT_CONCAT            -c  ("true" or "1")
+  SHIST_DEFAULT_NO_COLOR          -no-color  ("true" or "1")
+  NO_COLOR                        any value disables colour (no-color.org)
+  FORCE_COLOR                     any value but 0 forces colour, even when piped
+
+EXIT STATUS
+  0 ok  ·  1 couldn't read history or write output  ·  2 bad usage

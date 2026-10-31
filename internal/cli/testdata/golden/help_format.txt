@@ -1,0 +1,23 @@
+FORMAT  -format TEMPLATE
+  default '%C(green)%d%C(reset) | %C(yellow)%i%C(reset) | %c'
+
+TOKENS
+  %d  date (per -date-format)      %i  index (1 = oldest)
+  %t  UNIX timestamp               %e  elapsed seconds (zsh only)
+  %c  command                      %%  a literal %
+  %C(spec)  colour, git log style
+
+COLOURS  spec is space-separated words; 1st colour = text, 2nd = background
+  colours     red green yellow blue magenta cyan white black default
+              brightred …, 0-255, #rrggbb
+  attributes  bold dim italic ul blink reverse strike
+  reset       clear all colour and attributes
+
+DATES  -date-format LAYOUT
+  Go layout, written as the reference time Mon Jan 2 15:04:05 MST 2006
+  e.g. "15:04"  "Jan 2"  "2006-01-02T15:04:05"
+
+EXAMPLES
+  shist -format '%i %d %es - %c'
+  shist -format '%C(dim)%i%C(reset) %C(bold)%c%C(reset)'
+  shist -format '%c' -c -g brew         # bare commands, one per line

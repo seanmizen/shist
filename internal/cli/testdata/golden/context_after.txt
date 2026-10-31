@@ -1,0 +1,4 @@
+ | 1 | ls -la
+ | 2 | cd /tmp
+ | 3 | echo one \
+    two

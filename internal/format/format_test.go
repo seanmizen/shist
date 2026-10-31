@@ -69,6 +69,21 @@ func TestMultiline(t *testing.T) {
 	}
 }
 
+func TestDim(t *testing.T) {
+	cases := []struct {
+		opt  Options
+		want string
+	}{
+		{Options{Color: true, Dim: true}, "\033[2m7 \033[31m\033[2mls -la\033[0m\033[2m\033[0m\n"},
+		{Options{Dim: true}, "7 ls -la\n"}, // no colour, no dim
+	}
+	for _, c := range cases {
+		if got := render("%i %C(red)%c%C(reset)", c.opt, entry); got != c.want {
+			t.Errorf("%+v: got %q, want %q", c.opt, got, c.want)
+		}
+	}
+}
+
 func TestSGR(t *testing.T) {
 	cases := map[string]string{
 		"red":            "\033[31m",

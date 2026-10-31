@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +56,16 @@ func TestGolden(t *testing.T) {
 		{"no_color_env", map[string]string{"FORCE_COLOR": "1", "NO_COLOR": "1"}, []string{"-file", fixture("fish"), "-n", "1"}},
 		{"env_defaults", map[string]string{"SHIST_DEFAULT_NUMBER_OF_ITEMS": "2", "SHIST_DEFAULT_GREP": "echo"},
 			[]string{"-file", fixture("fish"), "-format", "%c"}},
+		{"context", nil, []string{"-file", fixture("zsh_extended"), "-g", "git|echo", "-B", "1", "-format", "%i %c", "-c"}},
+		{"context_after", nil, []string{"-file", fixture("bash_plain"), "-g", "ls", "-context", "1", "-after", "2"}},
+		{"context_n", nil, []string{"-file", fixture("bash_plain"), "-g", "^[lg]", "-n", "1", "-C", "1"}},
+		{"context_color", map[string]string{"FORCE_COLOR": "1"}, []string{"-file", fixture("bash_plain"), "-g", "cd", "-C", "1"}},
+		{"context_env", map[string]string{"SHIST_DEFAULT_CONTEXT": "1"}, []string{"-file", fixture("bash_plain"), "-g", "cd"}},
+		{"context_env_no_grep", map[string]string{"SHIST_DEFAULT_CONTEXT": "1"}, []string{"-file", fixture("bash_plain"), "-n", "1"}},
+		{"help", nil, []string{"-h"}},
+		{"help_color", map[string]string{"FORCE_COLOR": "1"}, []string{"-h"}},
+		{"help_format", nil, []string{"-help", "format"}},
+		{"help_env", nil, []string{"--h", "env"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -95,6 +106,9 @@ func TestErrors(t *testing.T) {
 		{"bad date", nil, []string{"-file", fixture("fish"), "-min-date", "yesterday"}, exitUsage, `invalid --min-date: "yesterday": want YYYY-MM-DD`},
 		{"bad flag", nil, []string{"-nope"}, exitUsage, "flag provided but not defined: -nope"},
 		{"stray arg", nil, []string{"20"}, exitUsage, `unexpected argument "20"`},
+		{"context without grep", nil, []string{"-file", fixture("fish"), "-C", "2"}, exitUsage, "need -grep"},
+		{"negative context", nil, []string{"-file", fixture("fish"), "-g", "x", "-B", "-1"}, exitUsage, "can't be negative"},
+		{"bad help topic", nil, []string{"-h", "nope"}, exitUsage, `no help topic "nope"`},
 		{"bad env int", map[string]string{"SHIST_DEFAULT_NUMBER_OF_ITEMS": "lots"}, nil, exitUsage,
 			`SHIST_DEFAULT_NUMBER_OF_ITEMS="lots" is not a whole number`},
 		{"missing file", nil, []string{"-file", missing}, exitError, "reading history: open " + missing},
@@ -121,11 +135,8 @@ func TestErrors(t *testing.T) {
 
 func TestHelpAndVersion(t *testing.T) {
 	out, _, code := shist(t, nil, "-h")
-	if code != 0 || !strings.HasPrefix(out, "shist test - ") {
+	if code != 0 || !strings.HasPrefix(out, "shist test · ") {
 		t.Errorf("-h: exit %d, out %.40q", code, out)
-	}
-	if strings.Contains(out, "%!") {
-		t.Errorf("help has a Printf formatting error:\n%s", out)
 	}
 	out, _, code = shist(t, nil, "--version")
 	if code != 0 || out != "shist test\n" {
@@ -138,11 +149,41 @@ func TestHelpMentionsEveryFlag(t *testing.T) {
 	var c config
 	var bad []string
 	flags := newFlagSet(Env{LookupEnv: func(string) (string, bool) { return "", false }}, &c, &bad)
+	help := renderHelp(helpMain, "", false)
 	flags.VisitAll(func(f *flag.Flag) {
-		if !strings.Contains(helpText, "-"+f.Name+" ") && !strings.Contains(helpText, "-"+f.Name+",") {
+		if !strings.Contains(help, "-"+f.Name+" ") && !strings.Contains(help, "-"+f.Name+",") {
 			t.Errorf("help text doesn't mention -%s", f.Name)
 		}
 	})
+}
+
+// TestHelpMentionsEveryEnvVar keeps the env page in sync with cli.go.
+func TestHelpMentionsEveryEnvVar(t *testing.T) {
+	src, err := os.ReadFile("cli.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vars := regexp.MustCompile(`"(SHIST_DEFAULT_[A-Z_]+|NO_COLOR)"`).FindAllStringSubmatch(string(src), -1)
+	if len(vars) == 0 {
+		t.Fatal("found no env vars in cli.go")
+	}
+	help := renderHelp(helpEnv, "", false)
+	for _, v := range vars {
+		if !strings.Contains(help, v[1]+" ") {
+			t.Errorf("-h env doesn't mention %s", v[1])
+		}
+	}
+}
+
+// TestHelpTags catches typos in {spec} colour tags, which would print nothing.
+func TestHelpTags(t *testing.T) {
+	for topic, page := range helpPages {
+		for _, tag := range helpTag.FindAllString(page, -1) {
+			if renderHelp(tag, "", true) == "" && tag != "{version}" {
+				t.Errorf("help page %q: %s is not a colour", topic, tag)
+			}
+		}
+	}
 }
 
 // Run with: go test -bench=. -benchmem ./internal/cli

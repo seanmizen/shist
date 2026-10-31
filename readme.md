@@ -75,6 +75,9 @@ shist [options]
 |---|---|
 | `-n N` | show the newest N matches (`-1`, the default, shows all) |
 | `-g`, `-grep PATTERN` | only commands matching this [regex](https://pkg.go.dev/regexp/syntax) |
+| `-C`, `-context N` | also show the N commands before and after each match |
+| `-B`, `-before N` | also show the N commands before each match |
+| `-A`, `-after N` | also show the N commands after each match |
 | `-min-date DATE` | only entries on or after DATE |
 | `-max-date DATE` | only entries on or before DATE; a bare date includes that whole day |
 | `-min-index N` | only entries with index ≥ N |
@@ -85,12 +88,17 @@ shist [options]
 | `-c`, `-concat-multiline` | print multi-line commands on one line |
 | `-no-color` | disable colour |
 | `-v`, `-version` | print the version |
-| `-h`, `-help` | show help |
+| `-h`, `-help [TOPIC]` | show help; `shist -h format` and `shist -h env` have the details |
 
 - Flags take one or two dashes: `-n 20` and `--n 20` are the same.
 - `DATE` is `YYYY-MM-DD`, `"YYYY-MM-DD HH:MM"` or UNIX seconds, in local time.
 - All filters apply first; `-n` then keeps the newest N of what's left, so
   `-g docker -n 20` gives you 20 docker commands.
+- `-context`, `-before` and `-after` work like grep's `-C`, `-B` and `-A`, and
+  need `-grep`. Neighbours are dimmed, windows that overlap merge, and `--`
+  separates groups that aren't next to each other. Neighbours are the commands
+  next to a match in the file, whatever the other filters say, and `-n` counts
+  matches, not lines. `-before` and `-after` override `-context` for their side.
 - The index (`%i`) is the entry's position in the history file, oldest first.
 
 ### Examples
@@ -98,6 +106,7 @@ shist [options]
 ```bash
 shist -n 20                                  # last 20 commands
 shist -g brew -format '%c' -c                # every brew command, one per line
+shist -g 'git push' -C 3                     # each push, with 3 commands either side
 shist -min-date 2025-04-01 -max-date 2025-04-07
 shist -min-date "2025-04-01 09:00" -date-format "15:04" -format "%d %c"
 shist -format '%c' -c | fzf --tac            # fuzzy-search your history
@@ -153,6 +162,9 @@ Set these in your shell profile to change the defaults. Flags still override the
 | `SHIST_DEFAULT_MAX_INDEX` | `-max-index` |
 | `SHIST_DEFAULT_CONCAT` | `-c` (`true` or `1`) |
 | `SHIST_DEFAULT_GREP` | `-grep` |
+| `SHIST_DEFAULT_CONTEXT` | `-context` (only used with a grep) |
+| `SHIST_DEFAULT_BEFORE` | `-before` (only used with a grep) |
+| `SHIST_DEFAULT_AFTER` | `-after` (only used with a grep) |
 | `SHIST_DEFAULT_NO_COLOR` | `-no-color` (`true` or `1`); `SHIST_NO_COLOR` also works |
 | `NO_COLOR` | any value disables colour ([no-color.org](https://no-color.org)) |
 | `FORCE_COLOR` | any value except `0` forces colour, even when piped |
